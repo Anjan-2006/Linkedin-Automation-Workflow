@@ -1,7 +1,7 @@
 # LinkedIn Automation Workflow - ReadMe
 
 ## Overview  
-This workflow automates the discovery, summarization, formatting, and posting of drone-related news articles on LinkedIn using AI and API integrations. It enables scheduled, consistent, and engaging LinkedIn content publishing.
+This workflow automates the discovery, summarization, formatting, and posting of drone-related news articles on LinkedIn using AI and API integrations. It enables scheduled, consistent, and engaging LinkedIn content publishing.Please check out the output linkedin account in the description
 
 ---
 
