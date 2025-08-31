@@ -1,0 +1,583 @@
+{
+  "name": "Linkedin workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        672
+      ],
+      "id": "3742b74b-1da0-461a-8212-42b84c6c6eaf",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "iFQJrij9PwB2MWkC",
+          "name": "internship apikey"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "results",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        624,
+        0
+      ],
+      "id": "ea508bfa-36bf-4ecd-b550-9f3c6e3c0214",
+      "name": "Split Out1"
+    },
+    {
+      "parameters": {
+        "content": "## NEWS DISCOVERY WORKFLOW\n",
+        "height": 208,
+        "width": 1440
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -80,
+        -64
+      ],
+      "typeVersion": 1,
+      "id": "6e3e6ae7-3ece-4e9f-8b05-0e3256e1b5fa",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an AI content summarizer and social media assistant.\n\n**Task:**  \nTake the following article information and output **strict JSON only** (no extra text, no markdown formatting).  \n\n1. A **summary in 2–3 paragraphs**, each paragraph containing multiple sentences.  \n2. **Hashtags** as an array (5–8 relevant ones).  \n3. **Trending keywords** as an array.\n\n\n**Article Information:**  \n- Title: {{$json.title}}  \n- URL: {{$json.url}}  \n- Content: {{ $('Split Out1').item.json.content }}\n\n**Output Format (strict JSON):**\n```json\n{\n  \"summary\": \"Your 2–3 paragraph summary here, each paragraph separated by two line breaks \\\\n\\\\n ...\",\n  \"hashtags\": [\"#example1\", \"#example2\", \"#example3\"],\n  \"keywords\": [\"keyword1\", \"keyword2\", \"keyword3\"],\n  \"url\": \"{{$json.url}}\"\n}\n",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        480
+      ],
+      "id": "d1550403-59f7-4478-b463-64ec2508f583",
+      "name": "summarization"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        496,
+        688
+      ],
+      "id": "82cfcccb-6bd6-425f-9a09-f4a193b85a9f",
+      "name": "Groq Chat Model1",
+      "credentials": {
+        "groqApi": {
+          "id": "iFQJrij9PwB2MWkC",
+          "name": "internship apikey"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const articles = $('Split Out1').all();   // all news articles\nconst imageResults = $input.all();        // all image results\n\nconst validExtensions = ['.jpg', '.jpeg', '.png'];\n\nconst isValidImage = (url) => {\n  if (!url) return false;\n  const cleanUrl = url.split('?')[0].split('#')[0].toLowerCase();  // strip query + hash\n  return validExtensions.some(ext => cleanUrl.endsWith(ext));\n};\n\nconst output = articles.map((article, idx) => {\n  let images = [];\n\n  if ((imageResults[idx]?.json || {}).photos) {\n    images = imageResults[idx].json.photos\n      .map(photo => ({\n        url: photo.src.original,\n        alt: photo.alt || \"\"\n      }))\n      .filter(img => isValidImage(img.url));\n  } else if ((imageResults[idx]?.json || {}).images) {\n    images = imageResults[idx].json.images\n      .filter(url => isValidImage(url))\n      .map(url => ({\n        url: url,\n        alt: article.json.title || \"\"\n      }));\n  }\n\n  return {\n    json: {\n      url: article.json.url,\n      title: article.json.title,\n      published_date: article.json.published_date || \"N/A\",\n      images: images\n    }\n  };\n});\n\nreturn output;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1152,
+        0
+      ],
+      "id": "38ee3622-e3bc-41b3-b556-108e5ff98143",
+      "name": "parser1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a social media content generator AI.\n\nTask: Take the following JSON input and generate a social media–ready caption with these elements:\n\n1. Hook line – a catchy first line.  \n2. Short summary – 1–2 paragraph concise, engaging summary.  \n3. Relevant hashtags – include from the input and add others if appropriate.  \n4. Call-to-action + article link – invite users to read the full article.  \n5. Relevant image reference – select 2–3 image URLs **only from the given list** {{ $('Search').item.json.images }}that:  \n   - Are directly downloadable (must end with .jpg, .jpeg, or .png).  \n   - Ignore all other formats (.webp, .gif, etc.) and broken links.  \n   - Do not invent or fetch random images outside the provided list.  \n\n**Input JSON:** {{$json.output}}\n\nSTRICT FORMAT INSTRUCTIONS:\n- Output must be a single-line minified JSON object with no line breaks, tabs, spaces outside values, escape characters, or markdown/code block markers.  \n- Output only the JSON object, nothing else.  \n\nExample: {\"hook\":\"Your hook line\",\"summary\":\"A short summary\",\"hashtags\":[\"#Tag1\",\"#Tag2\"],\"call_to_action\":\"Read more: https://link\",\"image_reference\":[\"https://example.com/image1.jpg\",\"https://example.com/image2.png\"]}\n",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        512,
+        480
+      ],
+      "id": "43205d6a-edd7-42ad-b460-ec8b7b2317ef",
+      "name": "content formatting"
+    },
+    {
+      "parameters": {
+        "content": "## SUMMARIZATION\n",
+        "height": 384,
+        "width": 384,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -96,
+        416
+      ],
+      "typeVersion": 1,
+      "id": "70197235-2a53-4b23-9fcf-cfbad8d32a9c",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "## CONTENT FORMATTING",
+        "height": 400,
+        "width": 336,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        464,
+        400
+      ],
+      "typeVersion": 1,
+      "id": "ebb3c839-e98f-4e3c-b269-9eb7f9570378",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "person": "55vdcw07HH",
+        "text": "={{ $json.hook.toUpperCase() }}\n\n{{ $json.summary }}\n\n{{ $json.hashtags.join(' ') }}\n\n{{ $json.call_to_action }}",
+        "shareMediaCategory": "IMAGE",
+        "additionalFields": {
+          "title": "={{ $('parser1').item.json.images[0].alt }}",
+          "visibility": "PUBLIC"
+        }
+      },
+      "type": "n8n-nodes-base.linkedIn",
+      "typeVersion": 1,
+      "position": [
+        1456,
+        544
+      ],
+      "id": "247bdb24-3c59-4f4a-a724-5ef21bbde87d",
+      "name": "Create a post",
+      "credentials": {
+        "linkedInOAuth2Api": {
+          "id": "CzBQlrakKPM9Z9ye",
+          "name": "LinkedIn account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.image_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1248,
+        544
+      ],
+      "id": "8d61401a-4f59-42dd-9930-1c5dc33dcd99",
+      "name": "HTTP Request2"
+    },
+    {
+      "parameters": {
+        "content": "## POSTING ON LINKEDIN",
+        "height": 384,
+        "width": 720,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        896,
+        400
+      ],
+      "typeVersion": 1,
+      "id": "73043728-23ab-4d4b-a8b2-5387eb992fa5",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.tavily.com/search",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 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"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"\\\"latest drone news\\\" OR \\\"UAV technology\\\" OR \\\"DGCA drones India\\\"\",\n  \"auto_parameters\": false,\n  \"topic\": \"news\",\n  \"search_depth\": \"advanced\",\n  \"chunks_per_source\": 5,\n  \"max_results\": 5,\n  \"start_date\": \"{{ $json.startDate }}\",\n  \"end_date\": \"{{ $json.todayDate }}\",\n  \"include_answer\": true,\n  \"include_raw_content\": true,\n  \"include_favicon\": true,\n  \"include_domains\": [\n    \"dgca.gov.in\",\n    \"timesofindia.indiatimes.com\",\n    \"thehindu.com\",\n    \"dronexl.co\",\n    \"global-agriculture.com\",\n    \"aviationweek.com\",\n    \"manilatimes.net\"\n  ],\n  \"exclude_domains\": [\n    \"amazon.com\",\n    \"flipkart.com\",\n    \"anyshop.com\"\n  ],\n  \"country\": \"India\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "fcc61ae2-46cb-47ad-ab68-9cd733346eed",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "query": "= {{ $json.title }}  get me the only images.",
+        "options": {
+          "max_results": 2,
+          "include_images": true
+        }
+      },
+      "type": "@tavily/n8n-nodes-tavily.tavily",
+      "typeVersion": 1,
+      "position": [
+        880,
+        0
+      ],
+      "id": "c1cf8ac6-3a5a-4e0c-ad57-1250ce83c499",
+      "name": "Search",
+      "credentials": {
+        "tavilyApi": {
+          "id": "juCMHlZoou4slS8L",
+          "name": "Tavily account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1FSpWk2fby-BV5iJBLdrBi6xf6DTq2E0Nv6AIdyt5M28",
+          "mode": "list",
+          "cachedResultName": "linkedin logs",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1FSpWk2fby-BV5iJBLdrBi6xf6DTq2E0Nv6AIdyt5M28/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1FSpWk2fby-BV5iJBLdrBi6xf6DTq2E0Nv6AIdyt5M28/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Title": "={{ $('Parser2').item.json.hook }}",
+            "Summary": "={{ $('Parser2').item.json.summary }}",
+            "Url": "={{ $('Parser2').item.json.call_to_action }}",
+            "Image Link": "={{ $('Parser2').item.json.image_url }}",
+            "Done": "True",
+            "Publication Date": "={{ $('parser1').item.json.published_date }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Title",
+              "displayName": "Title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Url",
+              "displayName": "Url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Publication Date",
+              "displayName": "Publication Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Summary",
+              "displayName": "Summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Image Link",
+              "displayName": "Image Link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Done",
+              "displayName": "Done",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        1664,
+        544
+      ],
+      "id": "e011b8b8-3655-4f69-b27f-d84ef12ce20f",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "E3RAvy9h1BoYgBi7",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = [];\n\nfor (const item of $input.all()) {\n    // Parse the raw JSON string from 'output' field\n    let parsed;\n    try {\n        parsed = JSON.parse(item.json.output);\n    } catch (e) {\n        throw new Error('Error parsing JSON: ' + e.message);\n    }\n\n    // If image_reference is an array, pick first element\n    let firstImageUrl = null;\n    if (Array.isArray(parsed.image_reference) && parsed.image_reference.length > 0) {\n        firstImageUrl = parsed.image_reference[0];\n    } else if (typeof parsed.image_reference === \"string\") {\n        // Fallback: if it's a string, just use it\n        firstImageUrl = parsed.image_reference;\n    }\n\n    results.push({\n        json: {\n            hook: parsed.hook,\n            summary: parsed.summary,\n            hashtags: parsed.hashtags,\n            call_to_action: parsed.call_to_action,\n            image_url: firstImageUrl, // safe first image\n        }\n    });\n}\n\nreturn results;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1008,
+        544
+      ],
+      "id": "f5a43a3f-b660-4615-86c6-a400a1cff421",
+      "name": "Parser2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const today = new Date();\nconst fourDaysAgo = new Date(today);\nfourDaysAgo.setDate(fourDaysAgo.getDate() - 2);\n\nconst todayDate = today.toISOString().split('T')[0];\nconst startDate = fourDaysAgo.toISOString().split('T')[0];\n\nreturn [{ json: { todayDate, startDate } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "83ed45a7-c555-4a66-89fa-7338e941e222",
+      "name": "Date Generator"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 23 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "eb0bdf51-eece-4ae8-ab8d-b81f58b35a2e",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "content": "## Linkedin Automation Workflow",
+        "height": 80,
+        "width": 288,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        576,
+        -208
+      ],
+      "typeVersion": 1,
+      "id": "b2ee0ccd-2e33-49a3-b2a7-0a49b27ea295",
+      "name": "Sticky Note4"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "summarization",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out1": {
+      "main": [
+        [
+          {
+            "node": "Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "summarization": {
+      "main": [
+        [
+          {
+            "node": "content formatting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "content formatting",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parser1": {
+      "main": [
+        [
+          {
+            "node": "summarization",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "content formatting": {
+      "main": [
+        [
+          {
+            "node": "Parser2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request2": {
+      "main": [
+        [
+          {
+            "node": "Create a post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Split Out1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search": {
+      "main": [
+        [
+          {
+            "node": "parser1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a post": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser2": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Date Generator": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Date Generator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "14962cb2-19b6-4810-93bd-ce36bd6599aa",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "24eacebe0317c0a5ec71d61debc59789f762f1c8f40dff782bf2f1925aa29ff4"
+  },
+  "id": "SGrXS3J31GesLWaI",
+  "tags": []
+}
